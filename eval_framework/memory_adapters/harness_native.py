@@ -99,6 +99,10 @@ class HarnessMemoryAdapter(MemoryAdapter):
         self._current_session_id = ""
         self._pending_sessions: list[tuple[str, str]] = []
         self._ingested_session_ids: list[str] = []
+        self._codex_thread_state: dict[str, str] = {}
+        # Optional runtime gate for attachment access; does not change prompts.
+        self._session_input_observer = None
+        self._pending_attachment_paths: dict[str, list[str]] = {}
 
         self._openclaw_session: Any = None
         self._openclaw_runtime: Any = None
@@ -197,6 +201,7 @@ class HarnessMemoryAdapter(MemoryAdapter):
             image_paths=None,
             max_images=0,
             max_image_bytes=0,
+            thread_state=self._codex_thread_state if self._target.codex_persistent_session else None,
         )
         return raw
 
@@ -210,6 +215,8 @@ class HarnessMemoryAdapter(MemoryAdapter):
         self._current_session_id = ""
         self._pending_sessions = []
         self._ingested_session_ids = []
+        self._codex_thread_state = {}
+        self._pending_attachment_paths = {}
 
     def ingest_turn(self, turn: NormalizedTurn) -> None:
         if self._current_session_id and turn.session_id != self._current_session_id:
@@ -221,6 +228,10 @@ class HarnessMemoryAdapter(MemoryAdapter):
         if not self._current_turns:
             return
         dialogue = _format_session(session_id, self._current_turns)
+        self._pending_attachment_paths[session_id] = [
+            att.file_path for turn in self._current_turns for att in turn.attachments
+            if att.file_path
+        ]
         self._pending_sessions.append((session_id, dialogue))
         self._current_turns = []
         self._current_session_id = ""
@@ -233,6 +244,8 @@ class HarnessMemoryAdapter(MemoryAdapter):
             return
 
         for session_id, dialogue in self._pending_sessions:
+            if self._session_input_observer is not None:
+                self._session_input_observer(session_id, self._pending_attachment_paths.get(session_id, []))
             msg = (
                 f"Here is a new conversation session (Session {session_id}). "
                 f"Remember all the details — you will be asked questions about it later.\n\n"
@@ -242,6 +255,7 @@ class HarnessMemoryAdapter(MemoryAdapter):
             )
             self._send_message(msg)
             self._ingested_session_ids.append(session_id)
+            self._pending_attachment_paths.pop(session_id, None)
             print(f"    [{session_id}] fed to agent", flush=True)
 
         self._pending_sessions = []

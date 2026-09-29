@@ -4,7 +4,13 @@ __pycache__/
 *.egg-info/
 .cache/
 .env
+.env.*
+!.env.example
 exp_log/
 *.pid
 *.log
 .DS_Store
+
+# Local paper downloads and derived text; cite the paper instead of vendoring it.
+/.cache_worldmemarena_paper.*
+/WorldMemArena_paper.pdf

@@ -25,6 +25,11 @@ A unified evaluation framework for benchmarking **lifelong memory** systems on t
 
 ## 🚀 Quick Start
 
+**Codex + GPT-6 experimental adaptation:** see the [experiment documentation](docs/README.md),
+[script guide](scripts/README.md), and [GUI subset results](docs/results/codex_gpt6_gui_subset/README.md).
+This opt-in path adds exact thread resume, container-compatible external isolation,
+and audit logging. It is a local subset experiment, not a claim of an exact paper reproduction.
+
 ```bash
 # 0. Clone and enter the project
 git clone https://github.com/eric-ai-lab/WorldMemArena.git

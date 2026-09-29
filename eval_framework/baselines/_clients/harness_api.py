@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,7 @@ class HarnessTarget:
     model_context_window: int | None
     model_auto_compact_token_limit: int | None
     model_api: str
+    codex_persistent_session: bool = False
 
 
 def _normalize_mm_mode(raw: Any) -> str:
@@ -95,6 +97,7 @@ def build_harness_target(baseline_name: str) -> HarnessTarget | None:
             else None
         ),
         model_api=str(cfg.get("model_api") or "").strip(),
+        codex_persistent_session=bool(cfg.get("codex_persistent_session", False)),
     )
 
 
@@ -292,6 +295,7 @@ def _call_codex_exec_prompt(
     image_paths: list[str] | None,
     max_images: int,
     max_image_bytes: int,
+    thread_state: dict[str, str] | None = None,
 ) -> tuple[str, dict[str, int]]:
     runner = _resolve_command(target.runner)
     target.workdir.mkdir(parents=True, exist_ok=True)
@@ -309,10 +313,18 @@ def _call_codex_exec_prompt(
     if target.approval_policy:
         cmd.extend(["--ask-for-approval", target.approval_policy])
     cmd.append("exec")
+    persistent = thread_state is not None
+    resume_id = thread_state.get("thread_id") if persistent else None
+    if resume_id:
+        cmd.append("resume")
+    if persistent:
+        cmd.append("--json")
     if target.model:
         cmd.extend(["--model", target.model])
     if target.sandbox:
-        cmd.extend(["--sandbox", target.sandbox])
+        # `exec resume` has no --sandbox flag; apply the same policy via config.
+        cmd.extend(["--config", f"sandbox_mode={json.dumps(target.sandbox)}"] if resume_id
+                   else ["--sandbox", target.sandbox])
     if target.model_context_window is not None:
         cmd.extend(["--config", f"model_context_window={target.model_context_window}"])
     if target.model_auto_compact_token_limit is not None:
@@ -320,6 +332,18 @@ def _call_codex_exec_prompt(
             "--config",
             f"model_auto_compact_token_limit={target.model_auto_compact_token_limit}",
         ])
+    # ``--image <FILE>...`` is a greedy positional option in the Codex CLI.
+    # Put the prompt before image flags or Codex will read the prompt from stdin.
+    cmd.extend([
+        "--skip-git-repo-check",
+        "--output-last-message",
+        str(output_path),
+    ])
+    if target.ephemeral and not persistent:
+        cmd.append("--ephemeral")
+    if resume_id:
+        cmd.append(resume_id)
+    cmd.append(prompt)
     if target.mm_mode == "image":
         for path in _limited_files(
             image_paths or [],
@@ -327,14 +351,6 @@ def _call_codex_exec_prompt(
             max_image_bytes=max_image_bytes,
         ):
             cmd.extend(["--image", path])
-    cmd.extend([
-        "--skip-git-repo-check",
-        "--output-last-message",
-        str(output_path),
-    ])
-    if target.ephemeral:
-        cmd.append("--ephemeral")
-    cmd.append(prompt)
 
     try:
         completed = subprocess.run(
@@ -353,14 +369,24 @@ def _call_codex_exec_prompt(
                 f"{target.provider}: codex harness failed with exit "
                 f"{completed.returncode}: {detail}"
             )
+        if persistent:
+            events = [json.loads(line) for line in completed.stdout.splitlines() if line.startswith("{")]
+            ids = [e["thread_id"] for e in events if e.get("type") == "thread.started"]
+            turns = [e for e in events if e.get("type") == "turn.completed"]
+            if len(ids) != 1 or not turns or not turns[-1].get("usage", {}).get("input_tokens"):
+                raise RuntimeError("Codex persistent call has no valid thread/completion")
+            if resume_id and ids[0] != resume_id:
+                raise RuntimeError("Codex resumed a different thread; refusing cross-session contamination")
         try:
             raw = output_path.read_text(encoding="utf-8").strip()
         except OSError:
             raw = ""
-        if not raw:
+        if not raw and not persistent:
             raw = completed.stdout.strip()
         if not raw:
             raise RuntimeError(f"{target.provider}: codex harness produced no output")
+        if persistent:
+            thread_state["thread_id"] = ids[0]
         return raw, empty_token_usage()
     finally:
         try:

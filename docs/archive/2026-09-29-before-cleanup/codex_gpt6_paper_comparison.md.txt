@@ -1,0 +1,77 @@
+# Codex + GPT-6 与论文指标对照
+
+**当前正式实验已完成：三个 GUI 样本、161 QA，全部通过输入/线程/隔离/评分一致性审计。** 协议见 [当前实验协议](codex_gpt6_isolated_protocol.md)，逐样本/checkpoint、原始记录与资源统计见 [最终报告](../exp_log/codex_persistent_isolated_v1/report/report.md)。
+
+| 方法 / 范围 | QA-C ↑ | QA-H ↓ | QA-O ↓ | F1 ↑ | BLEU-1 ↑ |
+|---|---:|---:|---:|---:|---:|
+| Codex + gpt-6-astra，本地 3 个 GUI 样本宏平均 | 70.81 | 13.01 | 16.18 | 34.26 | 16.48 |
+| 论文 Table 3 Codex–GPT-5.4-nano，更广数据范围 | 53.62 | 20.76 | 25.62 | 32.56 | 10.12 |
+
+这是一份可追溯、同指标的子集对照，不能把表中差值解释为严格同条件的模型胜负。本地 judge 请求 gpt-5.4-mini，返回 gpt-5.6-terra；作者精确 runtime 未确认。正式运行没有主动工具调用，主要反映持续上下文路径；工具能力已独立验收。Excel 两例 [judge 抽查](../exp_log/codex_persistent_isolated_v1/excel_01/judge_spotcheck.md) 提示所选 gold/evidence 不穷尽原始轨迹细节，主表仍保留全部原始评分，未人工改分。
+
+以下表格仅保留历史探索/故障诊断，不与当前正式结果混合。
+
+**历史诊断：原生全量拒答已定位为历史交接缺失，并发现 shell 沙箱执行失败；下列旧原生分数仅保留作故障诊断，不用于模型排名。见[故障诊断](codex_native_failure_diagnosis.md)。**
+
+**状态更正：本页 N/B 是自定义探索实验，不是仓库原生 harness 复现。通过真实仓库入口评测 Codex + GPT-6 的三个样本已完成，原生结果见下节。**
+
+日期：2026-09-29。所有数值为百分数；差值为百分点，使用未四舍五入的本地结果计算。
+
+## 历史：未修复仓库入口的故障结果
+
+| 方法 | QA-C ↑ | QA-H ↓ | QA-O ↓ | F1 ↑ | BLEU-1 ↑ |
+|---|---:|---:|---:|---:|---:|
+| 当前原生 Codex + GPT-6，三个 GUI 样本宏平均 | 9.32 | 0.00 | 90.68 | 5.79 | 2.42 |
+| 论文 Table 3 Codex–GPT-5.4-nano | 53.62 | 20.76 | 25.62 | 32.56 | 10.12 |
+
+本地旧故障运行的全部 161 答案都是“Not mentioned in memory.”，15 个正确拒答对应 gold 未记录信息；90 次调用的 CLI JSONL 未列出工具事件，但该日志不能单独证明没有工具行为。这个差异首先反映运行中的历史状态没有被使用，不能当作 GPT-6 的模型能力排名。
+请求 judge gpt-5.4-mini，provider 返回 gpt-5.6-terra，已记录并经用户接受。模型、范围、作者 runtime 仍存在对照限制。
+详情：[原生报告](../exp_log/native_codex_gpt6/report/report.md)。以下原 N/B 表格保留为历史探索，不能混作原生结果。
+
+## 五项 QA 指标
+
+依据本地论文 Table 3 和 Appendix B.1/B.3；本地沿用仓库 evaluator，并采用每样本内汇总、再跨样本平均。
+QA-C 越高越好；QA-H、QA-O 越低越好；F1、BLEU-1 越高越好。后两项衡量答案文本重合，不能替代正确性判断。
+
+| 方法 / 范围 | QA-C ↑ | QA-H ↓ | QA-O ↓ | F1 ↑ | BLEU-1 ↑ |
+|---|---:|---:|---:|---:|---:|
+| 论文 Codex–GPT-5.4-nano（Table 3 汇总） | 53.62 | 20.76 | 25.62 | 32.56 | 10.12 |
+| 本地 N：GPT-6-astra，3 个 GUI 样本 | 18.62 | 2.48 | 78.90 | 9.57 | 3.53 |
+| 本地 B：GPT-6-astra，3 个 GUI 样本 | 50.92 | 28.62 | 20.46 | 25.51 | 10.76 |
+
+| 本地减去论文 | Δ QA-C | Δ QA-H | Δ QA-O | Δ F1 | Δ BLEU-1 |
+|---|---:|---:|---:|---:|---:|
+| N − 论文 Codex | -35.00 | -18.28 | +53.28 | -22.99 | -6.59 |
+| B − 论文 Codex | -2.70 | +7.86 | -5.16 | -7.05 | +0.64 |
+
+B 相对论文参考行：正确率低 2.70 个百分点、幻觉率高 7.86 个百分点、遗漏率低 5.16 个百分点；F1 低 7.05 个百分点，BLEU-1 高 0.64 个百分点。不能由其中单项差值推断系统优劣。
+
+## 可比范围和限制
+
+- 指标定义、分值单位与样本宏平均方式对齐；无需重跑模型即可计算本表。
+- 本地为三个 GUI 样本，每协议 161 QA；论文 Table 3 为更广范围的汇总，没有获得这三个样本的官方逐题预测或单样本成绩。数据范围尚不匹配。
+- 论文主结果说明使用 GPT-5.4-mini judge；上表历史 N/B 探索使用 gpt-6-astra judge。当前正式运行改为请求 gpt-5.4-mini、provider 返回 gpt-5.6-terra，不能与历史 N/B 的 judge 设置混为一谈。F1/BLEU-1 为程序计算，但仍受样本与答案风格影响。
+- 论文 Table 3 标记 Codex–GPT-5.4-nano，正文描述 GPT-5.4；这里保留表格名称，不擅自推断作者实际模型。
+- N 是原生 prompt/流程的受控运行；B 是 fresh context + memory-only 工具。两组都 fresh，都不 resume。N/B 同时改变 prompt、记忆工具和显式截图输入。
+- 三个样本各一次有效运行，不能提供跨任务稳健性或多随机种子的显著性结论。
+
+## 其他论文指标为何不填
+
+论文 Table 2 的 memory Recall、Correctness、Hallucination、Irrelevance、Update Handling、Interference Rejection，以及 retrieval coverage / ranking，需要逐 session 记忆项和检索记录与 gold 对齐。本次使用 harness answer-only 评分，没有计算这些生命周期指标；它们应记为未评估，不能填 0，也不能用 QA-C 替代。B 有 JSON 快照可供后续单独分析，但必须先定义和验证映射协议。
+
+## 严格比较的后续 TODO
+
+- [x] 使用已有完整结果生成五项 QA 指标及差值表。
+- [x] 核查指标定义、样本宏平均、有效 QA 数和审计。
+- [x] 通过仓库真实入口完成 Codex + GPT-6 三个 GUI 样本；不以运行旧模型为当前任务前提。
+- [ ] 若能取得论文同子集输出，作为额外参考。
+- [ ] 使用同一 judge 重评两边预测；旧评分保留为独立版本。
+- [ ] 固定图片输入、工具权限和推理预算；只改变所研究的变量。
+- [ ] 若声称完整 benchmark 对照，扩展到相同评测样本集合，并报告重复运行方差。
+
+## 来源与产物
+
+- 论文：`WorldMemArena_paper.pdf`，Table 3；Appendix B.1/B.3。
+- 本地结果：`exp_log/codex_gui_report/results.json`；审计：同目录 `audit.json`。
+- 原始逐题及工具记录：`exp_log/codex_protocols_v4/{N,B}/{excel_01,file_mgmt_01,web_01}`。
+- 完整实验说明：[codex_gpt6_gui_experiment.md](codex_gpt6_gui_experiment.md)。

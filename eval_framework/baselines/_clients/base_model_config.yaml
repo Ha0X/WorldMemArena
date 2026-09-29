@@ -4,6 +4,16 @@
 # `base_url` defaults below assume each provider's official OpenAI-compatible endpoint;
 # adjust if you route requests through an internal gateway.
 
+icodeeasy:
+  model: gpt-6-astra
+  base_url: https://api.icodeeasy.cc
+  api_key_env: OPENAI_API_KEY
+  mm_mode: image
+  max_images_per_qa: 5
+  max_image_bytes_mb: 45
+  max_tokens: 16384
+  timeout: 180
+
 qwen:
   model: qwen/qwen3.6-plus
   base_url: https://openrouter.ai/api/v1

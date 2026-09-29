@@ -183,6 +183,7 @@ def _log_openai_call(
         event["input_count"] = _input_count(kwargs.get("input"))
     if response is not None:
         event["usage"] = extract_token_usage(response)
+        event["response_model"] = str(getattr(response, "model", "") or "")
     if error is not None:
         event["error_type"] = error.__class__.__name__
         event["error_message"] = str(error)[:500]

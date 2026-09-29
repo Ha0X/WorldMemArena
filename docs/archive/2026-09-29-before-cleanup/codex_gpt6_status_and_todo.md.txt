@@ -1,0 +1,191 @@
+# Codex + GPT-6：当前状态与后续 TODO
+
+更新：2026-09-29。此文件是续做工作的总入口；历史细节保留在关联文档。
+
+## 固定目标与当前结论
+
+被测系统固定为 **Codex CLI + gpt-6-astra**，通过 WorldMemArena harness-based 方法评测 GUI 多 session 轨迹。当前不是重新执行 GUI 操作，也不是比较 GPT-6 与旧模型的能力排名。
+
+**当前计划的三个 GUI 样本已全部完成，并通过联合审计。** 共 75 sessions / 15 checkpoints / 161 QA；样本宏平均 QA-C/H/O = 70.81 / 13.01 / 16.18（%），F1 34.26%，BLEU-1 16.48%。[最终报告](../exp_log/codex_persistent_isolated_v1/report/report.md)。这是明确记录本地持续 thread/隔离适配后的子集结果，不是作者 runtime 的逐项精确复现。
+
+## 正在执行的修复（用户已同意）
+
+采用“每样本一个持续 Codex thread”作为本地 harness 适配修复。Git 分支 `fix/codex-persistent-session`，保留此前工作区改动，未提交/推送。不是确认作者原版 runtime，也不将 B 的 memory-only 协议混入。
+
+- 通过 `codex_persistent_session` 显式启用；原配置默认行为保留。
+- 首次调用持久化 thread，后续 session / checkpoint 按确切 ID resume，样本 reset 清空 ID；禁止 resume --last。
+- QA 及答案会进入同一历史，影响后续 checkpoint；这是该持续线程协议的一部分。Gold 不输入。
+- 保留原生 session/QA prompt、caption/图片传递方式、模型和 sandbox policy；每次样本运行使用新的 /tmp 工作目录，避免普通文件串样本。CODEX_HOME 仍继承现有配置。
+- 最小 live 检查已通过：随机码首次输入、恢复后准确返回；reset 后新 thread 返回 UNKNOWN。
+- 4 项回归测试通过：精确 resume/reset、拒绝错误 thread、拒绝不完整/空答案、旧 ephemeral 行为保持。
+- Excel 第一个 checkpoint（5 sessions / 11 QA）已完成：8 Correct / 2 Hallucination / 1 Omission，QA-C 72.73%，F1 32.78%，BLEU-1 14.60%。只有 1 个显式拒答；不是 1 个 Correct。输出 `exp_log/codex_persistent/excel_cp1/`。
+- 六次调用共用唯一 thread，首次 exec 后五次精确 resume；QA 未手工拼历史，第一题恢复 Purchased。实际请求审计为 6 次、无工具交换。验收文件 `acceptance.json`。
+- 本轮仅有单样本首个 checkpoint，不能与论文总体分数作模型优劣比较。judge 标识差异沿用之前披露。
+- bubblewrap 本身仍不可用；后续已通过外层隔离替代及真实工具验收，见文末新节点。旧首 checkpoint 仍只算上下文路径验收。
+- 新增实际请求工具交换审计，避免仅靠 CLI JSONL 判断工具行为。
+
+## 已做工作清单
+
+| 阶段 | 已完成内容 | 当前有效结论 / 使用范围 |
+|---|---|---|
+| 环境和资料 | Conda worldmemarena；Codex 0.158.0；论文 PDF；icodeeasy Responses 接口可调用 GPT-6 | 环境可发请求，不代表工具和记忆功能已验收 |
+| 数据 | excel_01、file_mgmt_01、web_01；各 25 sessions / 5 checkpoints；共 161 QA、78 张图片 | 数据和图片已准备；gold 仅供评分，不作为模型输入 |
+| 探索 N | 原生提示词 + 独立 runner；额外功能限制；三个样本 161 QA | 宏平均 QA-C 18.62%；不是仓库原生 harness 复现 |
+| 探索 B | fresh context + memory-only MCP JSON；附加当前截图；三个样本 161 QA | 宏平均 QA-C 50.92%；是自定义记忆协议，不作为原生主结果 |
+| 仓库真实入口 | CLI→pipeline→HarnessMemoryAdapter→实际 Codex；三个样本 161 QA | 全部回答 Not mentioned in memory.；QA-C 9.32%，标为集成故障诊断 |
+| 历史输入诊断 | 同模型同 QA，仅改变是否补回已观察五个 session；无 gold/未来信息 | 拒答 11/11→1/11，第一题恢复 Purchased；证明历史可见性关键，不能称为 10/11 Correct |
+| 工具诊断 | 同原生环境要求执行 pwd，保存实际 custom tool 输入输出 | 三个不同调用返回 bubblewrap 权限错误；shell 尚不能工作 |
+| 版本核查 | 本地非浅克隆历史、README、论文；只读核对上游 HEAD/main 和 issues | 上游 main 与本地 HEAD 相同，未找到相关公开 issue；仍无法确认作者实际状态持久化机制 |
+
+探索 N/B 合计 322 QA，原生故障诊断 161 QA：总计 483 条已保存评分。两次早期原生连接调试目录被排除，小型诊断不计入 benchmark。不要混合这些实验分数。
+
+## 目前困难与证据
+
+1. **历史交接：** Codex 分支每次独立 exec，没有 resume 或显式 memory 交接；checkpoint 仅含问题。S08 原始回复能复述 Purchased，后续 QA 的实际输入却没有它。共享 cwd/CODEX_HOME 和大 context 上限不会自动传递历史；仅关闭 ephemeral 也不自动恢复线程。
+2. **工具执行：** workspace-write 沙箱下 `pwd` 返回 `bwrap: Failed to make / slave: Permission denied`。本轮没有取消沙箱或扩大权限绕过；是否存在可用的隔离执行环境仍需检查。
+3. **工具审计盲区：** 这版 CLI JSONL 不完整暴露 custom tool 调用，顶层 tools 字段也不能单独代表工具可用性。之前“无工具事件=完全无工具使用”的结论已撤回。后续必须记录实际工具请求/返回并做内容核查。
+4. **论文实现细节未齐：** adapter 注释描述 persistent session，Codex 实现却是独立 exec；README 仅给安装/认证步骤。不能在证据不足时把 resume、拼接历史或固定 JSON memory 任一种方案称为论文原版。
+
+judge 请求 gpt-5.4-mini，原生评分的返回标识均为 gpt-5.6-terra；用户已接受这项差异不阻碍推进。继续记录实际标识，它不是此次全量拒答的原因。“更强 judge”不保证更高分。
+
+## 本轮新核查：仓库版本
+
+- 本地和 2026-09-29 查询的上游 HEAD/main 均为 `15ea25b723d9c4fb35e8062037aec6a5601e4442`。
+- 本地 `git rev-parse --is-shallow-repository` 为 false。
+- 当前可见历史中，harness_native.py / harness_api.py 的历史只查到提交 `18b78cd`（2026-05-20）。
+- README Codex 小节只要求安装 CLI 和填写 api_key，没有额外的 resume/memory 启动步骤。
+- GitHub issues（state=all，返回 2 条；本次按 Codex/harness/ephemeral/resume 筛选）未找到匹配说明。
+- 此次没有 pull/reset/修改分支，也没有向作者发消息。未找到说明不等于证明论文实现错误。
+
+## 后续 TODO（按依赖推进）
+
+### P0：补齐最小运行验收
+
+- [x] 固定 Codex + GPT-6 目标，标记探索与故障诊断结果，排除混用。
+- [x] 核对当前上游版本、已知提交历史、README 和论文状态管理描述。
+- [ ] 进一步核对作者公开配置/运行脚本或可获得的 trace，确定跨 session 的状态机制；如果找不到，明确写“作者实现未确认”，列出可审查的适配选项及差异，不擅自冒充精确复现。
+- [x] 检查当前容器隔离能力：user namespace 可创建，但 Codex sandbox 和 unshare mount propagation 均 Permission denied；PATH 无 docker/podman/apptainer/singularity/srun/salloc。
+- [x] 验证当前容器内不依赖 mount 的 Landlock 路线：ABI 1；任务目录 shell 写入/跨进程读回、隔离外读取拒绝通过。仅合成数据能力探测，尚非正式执行沙箱。
+- [x] 补齐容器内外层隔离并接入 Codex；Landlock + syscall 限制 + 独有 UID/namespaces + 独立 CODEX_HOME + 外部凭据代理，详情见当前协议文档。
+- [x] 完成 pwd→写随机文件→新调用读回，以及 conversation-only 事实恢复；保存真实工具输入输出。
+- [x] 记录跨请求工具交换并在验收/汇总时去重；区分模型自述、CLI 工具事件、实际请求交换，日志无真实 key。
+
+### P1：明确协议后完成状态交接
+
+- [x] 按用户接受的持续 thread 方案做显式可选适配，保留原生 prompt；作者实际机制仍未确认。
+- [x] 随机事实跨进程、同 thread 恢复成功；reset 后新 thread 不知道事实，未拼历史或 gold。
+- [x] 六次实调验证事实旧值→新值、QA 后新值保留、reset 后 UNKNOWN；前五次同 thread，第六次新 thread。此项是最小功能验收，不代替完整任务中的长期更新评估。
+- [x] 确认原生 adapter 不主动附图，维持 caption/路径输入；已见附件逐文件只读 gate 与时点回归测试通过。
+- [x] 建立已到达 session/图片边界；正式结果审计继续逐调用核对，gold/未来 session/历史输出不开放。
+
+### P2：通过验收后再评测
+
+- [x] Excel 首个 checkpoint 的持续上下文路径通过：精确 thread 交接、QA 输入与请求日志核验完成。
+- [x] 外层隔离的完整最小工具/上下文验收通过（v4）；首次 checkpoint 仍不替代该验证。
+- [x] 跑完并审计 excel_01 全部 25 sessions / 5 checkpoints / 54 QA：39 C / 10 H / 5 O；QA-C 72.22%，F1 33.79%，BLEU-1 15.45%。
+- [x] 完成 file_mgmt_01、web_01；新目录保存，旧诊断不覆盖。
+- [x] 汇总 QA-C/H/O、F1、BLEU-1，分样本/checkpoint/题型、正确拒答、失败/token/时间；与论文 Table 3 并列参考并标注范围与实现差异。
+
+当前不再重复跑已知断开的链路。允许的独立工作先做；只有确需用户选择协议或更换执行环境时，拿具体证据和可执行方案说明。
+
+## 文档和产物导航
+
+- [完整实验记录](codex_gpt6_gui_experiment.md)：环境、旧 N/B 协议、数据、命令与结果。
+- [故障诊断证据](codex_native_failure_diagnosis.md)：原始日志和小型对照。
+- [论文指标对照](codex_gpt6_paper_comparison.md)：历史参考；不是有效模型排名。
+- 探索输出：`exp_log/codex_protocols_v4/{N,B}/`；报告 `exp_log/codex_gui_report/`。
+- 原生诊断：`exp_log/native_codex_gpt6/{excel_01_run3,file_mgmt_01,web_01}/`；报告同根目录 `report/`。
+- 上下文/工具诊断：`exp_log/native_codex_gpt6/context_diagnostic/`。
+- 原生 adapter 已增加可选持续 thread 与附件开放观察钩子；pipeline、harness YAML、原 QA/session prompt 保留。源码清单见 manifest；未提交或推送。
+
+## 持续 thread 修复的代码与复现
+
+- `eval_framework/baselines/_clients/harness_api.py`：增加可选状态传递，首建/恢复 thread、校验完成和 ID；旧调用保持 ephemeral。
+- `eval_framework/memory_adapters/harness_native.py`：每个 adapter 存储 thread ID，reset 清空；prompt 未改。
+- `scripts/run_native_codex_gpt6.py --persistent-session`：显式启用本地修复；支持 --max-sessions。
+- `scripts/codex_native_logged.py`：支持 resume 子命令参数位置，避免重复 --json。
+- `scripts/wma_transport.py`：可选保存真实工具交换，不记录认证头。
+- `scripts/check_codex_thread_handoff.py`：随机事实、恢复、reset 的实际接口检查。
+- `tests/test_codex_thread_handoff.py`：4 项回归测试。
+
+```bash
+conda run --no-capture-output -n worldmemarena python -m unittest discover \
+  -s tests -p test_codex_thread_handoff.py -v
+# 使用新输出目录重跑；已完成目录不要重复调用，以免混合 trace。
+conda run --no-capture-output -n worldmemarena python -u scripts/run_native_codex_gpt6.py \
+  --persistent-session --max-sessions 5 --sample-index 1 \
+  --output exp_log/codex_persistent/excel_cp1_new
+```
+
+Git 已有上游远程，无需新建仓库；开发分支 `fix/codex-persistent-session`。未提交/推送。仍需解决 shell 运行环境后再扩跑，不能把沙箱故障隐去。当前 PATH 未找到 docker/podman/apptainer/singularity；这不证明集群无可用隔离执行节点。
+
+## 继续推进节点：工具环境已定位（2026-09-29）
+
+- 不经过模型直接运行 `codex sandbox -c sandbox_mode='"workspace-write"' -- /bin/pwd`，exit 1，bubblewrap 无法设置挂载传播。
+- 系统 `unshare --user --map-root-user --mount -- /bin/true` 同样失败；仅 user namespace 的 id 探测成功。没有修改权限或主机挂载。
+- 可重复诊断：`exp_log/codex_persistent/environment_check/result.json`。
+- 已向用户询问可用的隔离运行节点/容器/启动命令；这是实际执行环境阻碍，不是重新请求实验授权。
+- 等待环境信息期间继续状态更新、QA 后状态保留和 reset 检查。没有将 shell 故障忽略后继续扩跑。
+- 启动器新增非空输出目录检查，避免重复调用混合旧 thread 日志；需要新输出目录，既有产物保留。
+
+状态更新验收已通过：`exp_log/codex_persistent/handoff_update_check/result.json`。6 次有效调用、前 5 次同 thread、第 6 次 reset 新 thread；6 次请求均无工具交换。已验证最新值与 QA 后状态一致，未引入 benchmark gold。
+
+此前将换节点/开放挂载操作列作下一步必要条件，判断过早；以下容器内探测已找到替代路线。暂无新 benchmark 后续批次运行；首个 checkpoint 的 72.73% 仍仅为上下文路径验收结果。
+
+## 容器内沙箱能力探测（2026-09-29）
+
+用户要求优先在当前容器内建立沙箱。当前 bubblewrap 的 mount propagation 失败，不意味着所有隔离机制不可用。
+
+- 新增 `scripts/check_landlock_isolation.py`，通过 fork 仅限制测试子进程，不改变容器权限、不安装依赖、不调用 API、不读取真实 benchmark/凭据。命令：`python3 scripts/check_landlock_isolation.py`。
+- 内核 Landlock ABI 1 可用。九项检查通过：shell 写入、下一进程读回、隔离外文件读取/写入/列目录/删除拒绝、软链接读取拒绝、父目录路径读取拒绝、shell 子进程继承读取限制。
+- 同时实证 ABI 1 缺口：`os.truncate` 仍可清空隔离外的**合成测试文件**。父进程确认该假文件长度归零；未操作真实数据。不能将本次探测称为完整沙箱。
+- 证据：`exp_log/codex_persistent/environment_check/landlock_probe.json`。测试退出 0 只代表所列读写边界通过，`production_ready=false`。
+- 下一步：补充 syscall 过滤，明确网络/API 代理和进程隔离边界，清理继承 FD/环境凭据，独立每样本运行配置与历史目录，再做真实 Codex 工具验收。尚未更改 Codex sandbox 配置或评测协议。
+- 该路线属于运行环境适配，不改变被测模型、session 顺序、原生 QA prompt 或 N/B 协议定义。完整实现仍需单独记录与原 runtime 的差异。
+
+## 外层隔离验收通过，恢复完整实验（2026-09-29 12:36 UTC）
+
+- 本地合成边界验收：`exp_log/codex_persistent/environment_check/external_isolation.json`，20 项通过，包括当前图片可读、其他文件/宿主 proc/网络不可读或不可达、截断拒绝、真实 key 不进入子进程、Codex 二进制可启动。
+- 实调验收：`exp_log/codex_persistent/isolated_tool_check_v4/result.json`，3 次真实 Codex + gpt-6-astra 调用，同 thread；文件写入/读回、conversation-only 随机事实恢复、隔离外 canary 拒读全部通过，未出现 rollout 写入错误。
+- v1–v3 是兼容性诊断，不算 benchmark。定位到状态文件权限/时间戳更新需求；v3 还进行过独立 strace 排查，已停止其诊断 namespace。只有 v4 是最终工具验收依据。
+- 外层使用每样本独有的临时数字 UID（不创建系统账号）、user/net/PID/IPC/UTS namespaces、Landlock 和 seccomp。当前容器无需改变权限、挂载或防火墙。CLI 内层使用 danger-full-access，但始终位于上述外层隔离内；不是在宿主上直接无限制运行。
+- 每样本独立 CODEX_HOME 与工作目录；不继承宿主历史/MCP/hooks，仅拷贝明确的 reasoning effort=medium 与 personality=pragmatic。真实 key 只在隔离外 Responses 代理内，隔离内是 placeholder。代理只通向既定 icodeeasy Responses 路径。
+- `wma_isolated_sample.py` 的附件 gate 在实际送达每个 session 前开放**精确图片文件**的只读权限；不开放整个数据目录，不改变原生 prompt、caption，也不主动附图。新增回归测试证明预加载下一 session 不会提前开放其附件。
+- `scripts/run_native_codex_gpt6.py --persistent-session --isolated` 启用该运行方式；完整 Excel 输出目录 `exp_log/codex_persistent_isolated_v1/excel_01`，随后扩展另外两个 GUI 样本。各样本新进程、新 UID、新 CODEX_HOME、新 thread；不挑选多次重跑中分数最高者。
+- 5 项适配/附件边界回归测试通过。沙箱只定位为本评测的内容隔离，不作为经过全面安全审计的多租户恶意代码托管服务；ABI 1 仍可能暴露文件存在性/部分元数据，资源消耗不在本次研究范围。
+- 按用户提醒控制沙箱投入：不再扩展通用功能，后续重点是完整 QA 结果、输入顺序/附件范围/线程/工具审计与论文指标对照。
+
+## 首个完整样本通过审计
+
+- Excel：54 QA 全部有效；39 Correct / 10 Hallucination / 5 Omission。QA-C/H/O = 72.22 / 18.52 / 9.26（%），F1 33.79%，BLEU-1 15.45%。
+- 审计命令：`conda run --no-capture-output -n worldmemarena python scripts/summarize_persistent_codex.py exp_log/codex_persistent_isolated_v1/excel_01 --output exp_log/codex_persistent_isolated_v1/excel_report`。
+- 30 次调用一个 thread、原生 prompt 逐字匹配、全部预测与评分记录一致、按送达时点开放图片、无 rollout 写入错误。54 个 judge 请求全部成功，返回标识 gpt-5.6-terra。
+- 本轮 Excel 没有主动工具调用，主要体现持续上下文路径；工具可用性有单独 v4 验收，不能将此分数称作磁盘记忆管理效果。
+- 另外两个样本已按同配置独立运行，输出 `exp_log/codex_persistent_isolated_v1/{file_mgmt_01,web_01}`。完整协议：[当前实验协议](codex_gpt6_isolated_protocol.md)。
+- Excel 两例 judge 定性抽查：S02 实际出现 double_click，S20 caption 实际出现 Numbers tab，但 judge 因所选 gold/evidence 没列出这些细节，将对应答案标成 Hallucination。主表保留原始评分、不人工改分；证据 `excel_01/judge_spotcheck.{json,md}`。不是断言全部错误标签都有问题，后续报告需披露 judge/证据摘要的边界。
+
+Web 也已完整通过审计：53 QA，38 Correct / 4 Hallucination / 11 Omission；QA-C/H/O = 71.70 / 7.55 / 20.75（%），F1 33.27%，BLEU-1 15.92%。单样本报告 `exp_log/codex_persistent_isolated_v1/web_report/report.md`。Excel/Web 的独立 CODEX_HOME/工作区已存档到各自 `state_snapshot/`；文件管理评分继续进行。
+
+## 最终完成节点：三个 GUI 样本
+
+| 样本 | QA | Correct / Hallucination / Omission | QA-C | F1 | BLEU-1 |
+|---|---:|---|---:|---:|---:|
+| excel_01 | 54 | 39 / 10 / 5 | 72.22 | 33.79 | 15.45 |
+| file_mgmt_01 | 54 | 37 / 7 / 10 | 68.52 | 35.72 | 18.08 |
+| web_01 | 53 | 38 / 4 / 11 | 71.70 | 33.27 | 15.92 |
+| 样本宏平均 | 161 | 总计 114 / 21 / 26 | 70.81 | 34.26 | 16.48 |
+
+- 90 次正式模型调用、90 个成功模型请求、161 个成功 judge 请求；每样本恰好一个 thread，三个 thread/目录/宿主 UID 不同。全部 QA 有效，提示词、逐次图片范围、预测/评分记录均通过审计。
+- 正式样本无主动工具调用：该结论同时有 CLI 与传输日志支持。工具可用性通过 v4 独立验收；本轮表现主要来自持续上下文，不能声称已验证自主磁盘记忆策略。
+- 文件管理记录 29 条 `OutputTextDelta without active item` 流事件日志，最终所有 completion 有效、全部答案解析完整、无 rollout 写入错误；原 stderr 保留，不隐去告警。
+- token 统计使用最后一次 thread 累计 usage，并与 rollout 的 total_token_usage 核对。三样本合计 input_tokens 2,807,522（其中 cached_input_tokens 2,657,024），output_tokens 8,210。未把每次累计快照相加，也未将缓存 token 重复加到输入总数。
+- 产物根目录：`exp_log/codex_persistent_isolated_v1/`。最终 `report/` 包含完整 Markdown/JSON、源码快照、环境版本、87 个数据/图片文件哈希；每个样本的 `state_snapshot/` 保存独立 CODEX_HOME 和工作区。没有保存真实 key，未提交/推送 Git。
+- 论文 Table 3 Codex–GPT-5.4-nano：QA-C/H/O 53.62 / 20.76 / 25.62，F1 32.56，BLEU-1 10.12。只作同指标参考：范围、backbone、judge 返回标识与作者 runtime 尚不完全相同，不能宣称严格同条件胜负。
+- 两例 judge 证据摘要边界案例保持原标签，未人工改分；不要把全部 QA-H 自动解释成经完整轨迹核定的事实错误。
+
+### 后续可选研究（不阻碍本轮结果完成）
+
+- [ ] 获得作者同子集预测/原运行 trace 后，核对精确持久化机制与同子集分数。
+- [ ] 若研究 judge 误判，另立完整轨迹证据复核实验，保留当前原始评分版本。
+- [ ] 若研究磁盘记忆价值，另立明确协议；不把本轮持续上下文结果冒充 memory-only 或 N/B。
+- [ ] 如需全 benchmark 或稳定性结论，扩大到相同样本集合并重复运行；当前三样本一次运行不支持显著性推断。

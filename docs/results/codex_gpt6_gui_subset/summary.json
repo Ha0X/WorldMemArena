@@ -1,0 +1,718 @@
+{
+  "scope": "GUI subset; persistent-thread local adapter repair, external isolation",
+  "model": "Codex CLI 0.158.0 + gpt-6-astra (requested model identifier)",
+  "dataset_revision": "e2148757921fc7e2d66d8ed899823b763227c341",
+  "macro": {
+    "qa_c": 0.7081295131609597,
+    "qa_h": 0.13009550430934078,
+    "qa_o": 0.16177498252969952,
+    "f1": 0.34257784406272296,
+    "bleu1": 0.1648300143588193
+  },
+  "paper_reference": {
+    "qa_c": 0.5362,
+    "qa_h": 0.2076,
+    "qa_o": 0.2562,
+    "f1": 0.3256,
+    "bleu1": 0.1012
+  },
+  "comparable": "Same repository QA metrics and per-sample macro averaging; different backbone, judge identity, dataset scope and unverified author runtime",
+  "source_results_sha256": "63b2c72c79ced96d9d2509f31cea66dd98f61ee17c9ba31cca9dc2471b632268",
+  "publication_note": "Allowlisted aggregate export; raw QA, gold, conversations, paths, thread IDs and credentials excluded.",
+  "runs": [
+    {
+      "sample": "excel_01",
+      "n": 54,
+      "counts": {
+        "Correct": 39,
+        "Hallucination": 10,
+        "Omission": 5
+      },
+      "qa_c": 0.7222222222222222,
+      "qa_h": 0.18518518518518517,
+      "qa_o": 0.09259259259259259,
+      "f1": 0.3378566094923063,
+      "bleu1": 0.15450305370899997,
+      "calls": 30,
+      "image_files": 14,
+      "usage": {
+        "input_tokens": 643282,
+        "cached_input_tokens": 600320,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2563,
+        "reasoning_output_tokens": 36
+      },
+      "cli_tool_counts": {},
+      "transport_tool_item_counts": {},
+      "checkpoints": {
+        "a97178a1": {
+          "n": 11,
+          "counts": {
+            "Correct": 10,
+            "Hallucination": 1
+          },
+          "qa_c": 0.9090909090909091,
+          "qa_h": 0.09090909090909091,
+          "qa_o": 0.0,
+          "f1": 0.3502839103933411,
+          "bleu1": 0.1527708495384812
+        },
+        "a6346d2f": {
+          "n": 11,
+          "counts": {
+            "Correct": 8,
+            "Hallucination": 3
+          },
+          "qa_c": 0.7272727272727273,
+          "qa_h": 0.2727272727272727,
+          "qa_o": 0.0,
+          "f1": 0.38231854812856,
+          "bleu1": 0.1629525699814327
+        },
+        "0441f4d3": {
+          "n": 11,
+          "counts": {
+            "Correct": 8,
+            "Hallucination": 2,
+            "Omission": 1
+          },
+          "qa_c": 0.7272727272727273,
+          "qa_h": 0.18181818181818182,
+          "qa_o": 0.09090909090909091,
+          "f1": 0.3950021564177313,
+          "bleu1": 0.22343441014446697
+        },
+        "26122412": {
+          "n": 11,
+          "counts": {
+            "Correct": 7,
+            "Hallucination": 2,
+            "Omission": 2
+          },
+          "qa_c": 0.6363636363636364,
+          "qa_h": 0.18181818181818182,
+          "qa_o": 0.18181818181818182,
+          "f1": 0.3106129419708999,
+          "bleu1": 0.17001095784036052
+        },
+        "085f3fc0-aff4-485a-b83d-8113fddf834f_post_traj": {
+          "n": 10,
+          "counts": {
+            "Correct": 6,
+            "Hallucination": 2,
+            "Omission": 2
+          },
+          "qa_c": 0.6,
+          "qa_h": 0.2,
+          "qa_o": 0.2,
+          "f1": 0.2423863786568685,
+          "bleu1": 0.05423082377338428
+        }
+      },
+      "question_types": {
+        "FR": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.444551282051282,
+          "bleu1": 0.2121791725718503
+        },
+        "DU": {
+          "n": 4,
+          "counts": {
+            "Correct": 2,
+            "Hallucination": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.5,
+          "qa_o": 0.0,
+          "f1": 0.31828252032520327,
+          "bleu1": 0.1193781912054096
+        },
+        "MB": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.36363636363636365,
+          "bleu1": 0.23618327637050734
+        },
+        "MC": {
+          "n": 4,
+          "counts": {
+            "Correct": 2,
+            "Hallucination": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.5,
+          "qa_o": 0.0,
+          "f1": 0.21015164258225655,
+          "bleu1": 0.061003694094531366
+        },
+        "TR": {
+          "n": 4,
+          "counts": {
+            "Correct": 3,
+            "Omission": 1
+          },
+          "qa_c": 0.75,
+          "qa_h": 0.0,
+          "qa_o": 0.25,
+          "f1": 0.3155843765045739,
+          "bleu1": 0.04399023512316312
+        },
+        "KR": {
+          "n": 4,
+          "counts": {
+            "Correct": 2,
+            "Omission": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.0,
+          "qa_o": 0.5,
+          "f1": 0.19826577276922677,
+          "bleu1": 0.01706624955544385
+        },
+        "TTL": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.2039382538652493,
+          "bleu1": 0.016187436389420648
+        },
+        "VFR": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.4173076923076923,
+          "bleu1": 0.18348349692462576
+        },
+        "VS": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 1.0,
+          "bleu1": 1.0
+        },
+        "VU": {
+          "n": 4,
+          "counts": {
+            "Correct": 2,
+            "Hallucination": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.5,
+          "qa_o": 0.0,
+          "f1": 0.2445175798899203,
+          "bleu1": 0.04186911803674533
+        },
+        "CMR": {
+          "n": 4,
+          "counts": {
+            "Hallucination": 2,
+            "Correct": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.5,
+          "qa_o": 0.0,
+          "f1": 0.2388627975721957,
+          "bleu1": 0.018873295366341497
+        },
+        "": {
+          "n": 10,
+          "counts": {
+            "Correct": 6,
+            "Hallucination": 2,
+            "Omission": 2
+          },
+          "qa_c": 0.6,
+          "qa_h": 0.2,
+          "qa_o": 0.2,
+          "f1": 0.2423863786568685,
+          "bleu1": 0.05423082377338428
+        }
+      }
+    },
+    {
+      "sample": "file_mgmt_01",
+      "n": 54,
+      "counts": {
+        "Correct": 37,
+        "Hallucination": 7,
+        "Omission": 10
+      },
+      "qa_c": 0.6851851851851852,
+      "qa_h": 0.12962962962962962,
+      "qa_o": 0.18518518518518517,
+      "f1": 0.3572034514091877,
+      "bleu1": 0.1808119629393317,
+      "calls": 30,
+      "image_files": 50,
+      "usage": {
+        "input_tokens": 1520042,
+        "cached_input_tokens": 1455104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 3113,
+        "reasoning_output_tokens": 514
+      },
+      "cli_tool_counts": {},
+      "transport_tool_item_counts": {},
+      "checkpoints": {
+        "a5868c04": {
+          "n": 11,
+          "counts": {
+            "Correct": 6,
+            "Hallucination": 3,
+            "Omission": 2
+          },
+          "qa_c": 0.5454545454545454,
+          "qa_h": 0.2727272727272727,
+          "qa_o": 0.18181818181818182,
+          "f1": 0.35204294881268106,
+          "bleu1": 0.2248856475980646
+        },
+        "c1795481": {
+          "n": 11,
+          "counts": {
+            "Correct": 8,
+            "Hallucination": 3
+          },
+          "qa_c": 0.7272727272727273,
+          "qa_h": 0.2727272727272727,
+          "qa_o": 0.0,
+          "f1": 0.3652299711629855,
+          "bleu1": 0.20975347873082537
+        },
+        "b8dba764": {
+          "n": 10,
+          "counts": {
+            "Correct": 8,
+            "Omission": 1,
+            "Hallucination": 1
+          },
+          "qa_c": 0.8,
+          "qa_h": 0.1,
+          "qa_o": 0.1,
+          "f1": 0.34732801317439416,
+          "bleu1": 0.13368779605682826
+        },
+        "719dd2d2": {
+          "n": 11,
+          "counts": {
+            "Correct": 7,
+            "Omission": 4
+          },
+          "qa_c": 0.6363636363636364,
+          "qa_h": 0.0,
+          "qa_o": 0.36363636363636365,
+          "f1": 0.37393494297250174,
+          "bleu1": 0.18121975617017513
+        },
+        "0224ae51-5cdb-4bf8-89fe-765cb9426880_post_traj": {
+          "n": 11,
+          "counts": {
+            "Correct": 8,
+            "Omission": 3
+          },
+          "qa_c": 0.7272727272727273,
+          "qa_h": 0.0,
+          "qa_o": 0.2727272727272727,
+          "f1": 0.3465836138111221,
+          "bleu1": 0.1502291209696284
+        }
+      },
+      "question_types": {
+        "FR": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.6267482517482517,
+          "bleu1": 0.32817045219178775
+        },
+        "DU": {
+          "n": 4,
+          "counts": {
+            "Hallucination": 2,
+            "Omission": 2
+          },
+          "qa_c": 0.0,
+          "qa_h": 0.5,
+          "qa_o": 0.5,
+          "f1": 0.25823253786640515,
+          "bleu1": 0.052287497113131784
+        },
+        "MB": {
+          "n": 4,
+          "counts": {
+            "Correct": 2,
+            "Hallucination": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.5,
+          "qa_o": 0.0,
+          "f1": 0.18181818181818182,
+          "bleu1": 0.11809163818525367
+        },
+        "MC": {
+          "n": 3,
+          "counts": {
+            "Hallucination": 1,
+            "Correct": 2
+          },
+          "qa_c": 0.6666666666666666,
+          "qa_h": 0.3333333333333333,
+          "qa_o": 0.0,
+          "f1": 0.10469135802469136,
+          "bleu1": 0.029678312449085826
+        },
+        "TR": {
+          "n": 4,
+          "counts": {
+            "Hallucination": 2,
+            "Correct": 1,
+            "Omission": 1
+          },
+          "qa_c": 0.25,
+          "qa_h": 0.5,
+          "qa_o": 0.25,
+          "f1": 0.2291390314847751,
+          "bleu1": 0.01871644312567375
+        },
+        "KR": {
+          "n": 4,
+          "counts": {
+            "Omission": 2,
+            "Correct": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.0,
+          "qa_o": 0.5,
+          "f1": 0.2416443769729391,
+          "bleu1": 0.024436162556906536
+        },
+        "TTL": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.1370766488413547,
+          "bleu1": 0.006809173634785806
+        },
+        "VFR": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.6058441558441559,
+          "bleu1": 0.4182537860587547
+        },
+        "VS": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 1.0,
+          "bleu1": 1.0
+        },
+        "VU": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.28750194840620374,
+          "bleu1": 0.027860595813334197
+        },
+        "CMR": {
+          "n": 4,
+          "counts": {
+            "Omission": 2,
+            "Correct": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.0,
+          "qa_o": 0.5,
+          "f1": 0.22261800454266262,
+          "bleu1": 0.010946933998057125
+        },
+        "": {
+          "n": 11,
+          "counts": {
+            "Correct": 8,
+            "Omission": 3
+          },
+          "qa_c": 0.7272727272727273,
+          "qa_h": 0.0,
+          "qa_o": 0.2727272727272727,
+          "f1": 0.3465836138111221,
+          "bleu1": 0.1502291209696284
+        }
+      }
+    },
+    {
+      "sample": "web_01",
+      "n": 53,
+      "counts": {
+        "Correct": 38,
+        "Omission": 11,
+        "Hallucination": 4
+      },
+      "qa_c": 0.7169811320754716,
+      "qa_h": 0.07547169811320754,
+      "qa_o": 0.20754716981132076,
+      "f1": 0.3326734712866749,
+      "bleu1": 0.15917502642812625,
+      "calls": 30,
+      "image_files": 14,
+      "usage": {
+        "input_tokens": 644198,
+        "cached_input_tokens": 601600,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2534,
+        "reasoning_output_tokens": 0
+      },
+      "cli_tool_counts": {},
+      "transport_tool_item_counts": {},
+      "checkpoints": {
+        "f017f95f": {
+          "n": 11,
+          "counts": {
+            "Correct": 7,
+            "Omission": 4
+          },
+          "qa_c": 0.6363636363636364,
+          "qa_h": 0.0,
+          "qa_o": 0.36363636363636365,
+          "f1": 0.35151626532415553,
+          "bleu1": 0.19990434241794203
+        },
+        "edaf4158": {
+          "n": 10,
+          "counts": {
+            "Correct": 7,
+            "Omission": 2,
+            "Hallucination": 1
+          },
+          "qa_c": 0.7,
+          "qa_h": 0.1,
+          "qa_o": 0.2,
+          "f1": 0.35426153465338706,
+          "bleu1": 0.1709123131555166
+        },
+        "9c2ee376": {
+          "n": 11,
+          "counts": {
+            "Correct": 8,
+            "Omission": 1,
+            "Hallucination": 2
+          },
+          "qa_c": 0.7272727272727273,
+          "qa_h": 0.18181818181818182,
+          "qa_o": 0.09090909090909091,
+          "f1": 0.2996441352718915,
+          "bleu1": 0.11854508224487961
+        },
+        "0bde135b": {
+          "n": 10,
+          "counts": {
+            "Correct": 6,
+            "Omission": 3,
+            "Hallucination": 1
+          },
+          "qa_c": 0.6,
+          "qa_h": 0.1,
+          "qa_o": 0.3,
+          "f1": 0.28906831638199504,
+          "bleu1": 0.11859086884963205
+        },
+        "02d4e9d2-f6c6-4dfe-9d07-0813cf19a087_post_traj": {
+          "n": 11,
+          "counts": {
+            "Correct": 10,
+            "Omission": 1
+          },
+          "qa_c": 0.9090909090909091,
+          "qa_h": 0.0,
+          "qa_o": 0.09090909090909091,
+          "f1": 0.3668755510257665,
+          "bleu1": 0.18530008266801518
+        }
+      },
+      "question_types": {
+        "FR": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.6875,
+          "bleu1": 0.4217379723690716
+        },
+        "DU": {
+          "n": 4,
+          "counts": {
+            "Correct": 1,
+            "Omission": 3
+          },
+          "qa_c": 0.25,
+          "qa_h": 0.0,
+          "qa_o": 0.75,
+          "f1": 0.30197033768462345,
+          "bleu1": 0.08597854175087062
+        },
+        "MB": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.36363636363636365,
+          "bleu1": 0.23618327637050734
+        },
+        "MC": {
+          "n": 4,
+          "counts": {
+            "Correct": 2,
+            "Hallucination": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.5,
+          "qa_o": 0.0,
+          "f1": 0.30976512226512226,
+          "bleu1": 0.15600080279220552
+        },
+        "TR": {
+          "n": 3,
+          "counts": {
+            "Omission": 2,
+            "Hallucination": 1
+          },
+          "qa_c": 0.0,
+          "qa_h": 0.3333333333333333,
+          "qa_o": 0.6666666666666666,
+          "f1": 0.15588235294117647,
+          "bleu1": 0.01551897720750903
+        },
+        "KR": {
+          "n": 4,
+          "counts": {
+            "Omission": 2,
+            "Correct": 2
+          },
+          "qa_c": 0.5,
+          "qa_h": 0.0,
+          "qa_o": 0.5,
+          "f1": 0.142736014229293,
+          "bleu1": 0.013297056082907559
+        },
+        "TTL": {
+          "n": 4,
+          "counts": {
+            "Omission": 1,
+            "Correct": 3
+          },
+          "qa_c": 0.75,
+          "qa_h": 0.0,
+          "qa_o": 0.25,
+          "f1": 0.15373251545628475,
+          "bleu1": 0.007719509528996918
+        },
+        "VFR": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.5739087301587302,
+          "bleu1": 0.3768128278085917
+        },
+        "VS": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.4,
+          "bleu1": 0.25
+        },
+        "VU": {
+          "n": 4,
+          "counts": {
+            "Correct": 4
+          },
+          "qa_c": 1.0,
+          "qa_h": 0.0,
+          "qa_o": 0.0,
+          "f1": 0.27193180416820817,
+          "bleu1": 0.027599107377695827
+        },
+        "CMR": {
+          "n": 3,
+          "counts": {
+            "Omission": 2,
+            "Hallucination": 1
+          },
+          "qa_c": 0.0,
+          "qa_h": 0.3333333333333333,
+          "qa_o": 0.6666666666666666,
+          "f1": 0.10256410256410255,
+          "bleu1": 0.01670072779886976
+        },
+        "": {
+          "n": 11,
+          "counts": {
+            "Correct": 10,
+            "Omission": 1
+          },
+          "qa_c": 0.9090909090909091,
+          "qa_h": 0.0,
+          "qa_o": 0.09090909090909091,
+          "f1": 0.3668755510257665,
+          "bleu1": 0.18530008266801518
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+# Codex 原生全量拒答：排查结论
+
+2026-09-29。此前原生三个 GUI 样本的 9.32% QA-C 应标为**集成链路故障诊断**，不作为 Codex + GPT-6 的有效记忆能力对比结果。答案与评分真实保存，但“调用成功、记录一致”不等于“harness 运行能力验收通过”。
+
+## 已确认的主因：历史状态没有交接给 QA
+
+实际流程：
+
+```text
+S08 → fresh codex exec → 正确概括 B1 = Purchased → 进程结束
+其他 session → 各自 fresh codex exec → 进程结束
+checkpoint → 新 thread，仅收到问题 → 不包含 S08 → 回答 Not mentioned in memory.
+```
+
+- `harness_native.py::flush_ingest` 发送每个 session，但不把返回摘要加入后续上下文。
+- `answer_batch` 仅拼接 QA prompt；`retrieve` 返回空 items 和 session ID 元数据。
+- `_call_codex_exec_prompt` 每次新启动 exec；没有 resume/session-ID 交接，配置 `ephemeral: true`。
+- `ephemeral: false` 单独改动也不能修复：只保存 transcript，不会自动在下一次 exec 中读取它。
+- 共用 CODEX_HOME/cwd 或给出 1M context 上限，不会自动使不同 thread 共享历史。普通文件可跨调用保留，但没有建立文件记忆协议或确认其实际工作。
+- 相关 adapter/pipeline/harness YAML 与当前 git HEAD 一致。这是当前仓库 Codex 分支的具体行为；不能由此断言论文作者运行时也这样配置。
+
+原始日志证据：`exp_log/native_codex_gpt6/excel_01_run3/codex_calls/` 按时间排序，第 4 次为 S08，原始回答明确复述 “Purchased”；第 6 次为首个 checkpoint，原始回答就是 11 条拒答。
+解析器未替换答案，judge 在这些回答生成后才运行，因此均不是这次全量拒答的来源。
+
+## 受控诊断（不计入 benchmark 分数）
+
+同一 Codex、gpt-6-astra、原生 QA prompt、运行环境和传输；只改变诊断输入是否包含此前实际观察的五个 session。未发送 gold answer、gold memory 或未来 session。
+
+| 诊断输入 | 第一题 B1 文本 | 拒答数 |
+|---|---|---:|
+| 仅原生 checkpoint QA | Not mentioned in memory. | 11/11 |
+| 已观察五个 session + 同份 QA | Purchased | 1/11 |
+
+这是信息可见性诊断，不是把长上下文方案当作修复后的 harness 得分。剩余 10 个非拒答未经本轮 judge 重新评分，不能称为 10/11 Correct。
+
+请求元数据确认：QA-only 没有历史 session 标记和 Purchased；补历史请求有五个 session 标记及 Purchased，两者都未使用 previous_response_id。
+产物：`exp_log/native_codex_gpt6/context_diagnostic/{results.json,request_metadata.jsonl,*.prompt.txt,*.answer.txt}`。
+脚本：`scripts/diagnose_native_context.py`。
+
+## 第二个独立运行问题：shell 沙箱无法执行
+
+保持同一原生配置，显式要求使用 shell 执行无副作用的 `pwd`。真实工具返回：
+
+```text
+bwrap: Failed to make / slave: Permission denied
+```
+
+在 `/tmp` 以及默认 cwd / 非 login shell 尝试中复现。证明当前 workspace-write 沙箱与容器运行权限存在兼容问题。即便要让模型自行落盘，也不能先假设 shell 可用。
+该问题不能直接解释原始每一道拒答：原始运行尚无完整 request-body 工具跟踪。主因历史缺失有独立对照证据，shell 失败是另一个必须解决的运行验收问题。
+
+可核验工具输入输出：`exp_log/native_codex_gpt6/context_diagnostic/tool_probe/verified/tool_exchange.jsonl`。
+本次没有关闭沙箱或提升权限绕过该错误。
+
+## 纠正工具审计方法
+
+这版 Codex 将工具说明编码到 developer 输入中，用 custom_tool_call 调用。请求顶层没有 tools 字段，不代表没有工具。
+显式 pwd 探测能看到实际 custom_tool_call / custom_tool_call_output，但 CLI --json 输出只出现 agent_message 和 turn.completed，未独立报告 command_execution。
+因此此前用“没有 item.completed 工具事件”推断“模型绝对没有工具调用”的方法不充分；现将原生报告的审计范围收窄为记录一致性，不能声称工具访问完整审计。
+原始三个样本各有 30 次 HTTP 200 请求/30 次调用，未观察到额外模型工具反馈轮次；这只能补充证据，不能替代完整工具跟踪。
+
+`codex features list` 显示 memories 默认 false、shell_tool/unified_exec 默认 true。之前探索 N 显式关闭 memories 与当前原生默认状态并非已证实的关键差异，不能用它解释分差。
+
+## 版本核查补充（2026-09-29）
+
+本地非浅克隆历史与上游当前 main 均指向 `15ea25b723d9c4fb35e8062037aec6a5601e4442`；当前已知 harness 实现历史只查到 `18b78cd`。README 无状态持久化额外步骤，本次公开 issue 检索未找到相关说明。未改动分支或联系作者。完整工作清单与排序见[状态和 TODO](codex_gpt6_status_and_todo.md)。
+
+## 下一步验收顺序
+
+- [x] 检查原始输出，排除答案解析和 judge 导致全量拒答。
+- [x] 通过实际请求元数据与两组小调用确认历史可见性问题。
+- [x] 明确 shell 工具真实执行失败，保存实际工具返回。
+- [x] 将已有原生分数标为集成诊断，不再当作模型记忆性能结论。
+- [ ] 先确认论文 intended harness 状态管理方式与作者具体实现；当前仓库注释写 persistent session，但 Codex 分支并未实现 transcript 延续。
+- [ ] 在保持可审计隔离的运行环境中让最小 shell 读写验证通过，不擅自取消安全边界。
+- [ ] 根据确认的协议实现状态交接：持续 thread 和 fresh + 外部 memory 是不同方法，不混用，也不将简单拼历史诊断冒充修复。
+- [ ] 验收跨调用随机事实保留、图片可见性、gold/未来信息隔离；仅通过后再重跑首个 checkpoint，再扩展样本。
+
+此前我过早将 record-consistency audit 当作完整运行验收，且在已知独立 exec 后仍扩大样本，没有先验证记忆交接与 shell 可用性。这是执行与结论上的错误，已在此明确纠正。
+
+## 后续进展：持续 thread 本地修复已验收上下文路径
+
+用户同意持续 thread 方案后，在分支 `fix/codex-persistent-session` 添加显式可选适配，未改原生 prompt。随机事实同 thread 恢复正确、reset 后新 thread UNKNOWN；4 项回归测试通过。Excel 首个 checkpoint 的六次调用同一 thread，QA 未拼接历史，得到 8 Correct / 2 Hallucination / 1 Omission。结果位于 `exp_log/codex_persistent/excel_cp1/acceptance.json`。这确认历史断点已修通；shell 沙箱仍失败，不能据此宣称完整 harness 工具运行通过。
+
+## 执行环境复核
+
+直接本地 Codex sandbox pwd 与 unshare user+mount 均出现挂载传播 Permission denied；单 user namespace 创建成功，未改系统权限。详情 `exp_log/codex_persistent/environment_check/result.json`。当前 PATH 无已知容器/Slurm 运行器，已询问可用隔离节点信息，未禁用沙箱扩跑。与此同时六次 live 调用的事实更新/QA 后保留/reset 验收通过，见 `handoff_update_check/result.json`。

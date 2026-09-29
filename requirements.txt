@@ -20,6 +20,7 @@ sentence-transformers>=2.2.0
 torch>=2.0.0
 transformers>=4.35.0
 httpx>=0.24.0             # GME/Qwen remote embedding client
+requests>=2.31.0          # Codex evaluation Responses transport proxy
 
 # M2A auto embed sidecar
 fastapi>=0.100.0

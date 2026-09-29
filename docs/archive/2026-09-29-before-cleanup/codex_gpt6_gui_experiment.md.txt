@@ -1,0 +1,271 @@
+# GPT-6 + Codex GUI 实验记录
+
+更新时间：2026-09-29。**三个 GUI 样本的持续 thread + 外层隔离正式运行已全部完成并通过审计：161 QA，宏平均 QA-C 70.81%、QA-H 13.01%、QA-O 16.18%、F1 34.26%、BLEU-1 16.48%。** [最终报告](../exp_log/codex_persistent_isolated_v1/report/report.md)；[当前协议](codex_gpt6_isolated_protocol.md)。下文旧原生全量拒答仍只作为历史集成故障诊断，不能与本轮混合。
+
+当前工作总入口：[状态、已做工作与后续 TODO](codex_gpt6_status_and_todo.md)。
+
+## 已完成的修复与运行
+
+按用户同意的每样本持续 thread 完成本地适配修复，分支 `fix/codex-persistent-session`，未提交/推送。当前 5 项回归测试、20 项本地隔离检查和真实工具/上下文验收通过。外层隔离替代容器内不可用的 bubblewrap；三个样本各 30 次调用、独立 thread/工作目录/CODEX_HOME/UID，共 90 次调用与 161 个有效 QA。原生提示词未改，未手工拼历史或输入 gold。正式样本未主动用工具，因此结果主要体现持续上下文路径；作者实际 runtime 未确认，保留子集、judge 及实现差异说明。详见[状态与 TODO](codex_gpt6_status_and_todo.md)。
+
+## 历史排查更正：未修复的原生分数不用于模型比较
+
+**全量拒答已经定位为集成链路问题。** 独立 checkpoint 请求没有历史；同模型同问题补回已观察历史后，拒答从 11/11 降至 1/11，并正确答出 Purchased。另有原生 shell 执行被 bubblewrap 权限错误阻止。
+完整证据与修复前验收 TODO：[故障诊断](codex_native_failure_diagnosis.md)。现有 161 QA 保留为故障诊断，不再作为有效模型记忆性能对照。
+此前“无 JSONL 工具事件 = 没有工具调用”的审计推断也不充分：这版 CLI 不完整输出 custom tool 事件。现收窄为 prompt/QA/线程记录一致性检查。
+
+## 当前目标：Codex + GPT-6 的原生 harness 评测
+
+被测系统固定为 **Codex CLI + `gpt-6-astra`（icodeeasy Responses API）**。
+按论文 harness-based 范式、通过仓库真实评测入口，顺序输入 session，在 checkpoint 回答 QA。
+不以换回论文旧模型为前提，也不把设计新记忆协议当作当前目标。
+
+此前执行偏差：N/B 使用独立运行器；N 还关闭了 memories、skills/plugins 等功能，并固定 reasoning。
+因此 N 只复用原生 prompt 和部分调用方式，**不是仓库默认 harness 行为的复现**。
+将其称为“原生组”不够准确，现统一标为探索 N；B 为自定义外部记忆探索。
+已得到的 322 QA 保留，不改分、不覆盖，但不作为本次原生 harness 评测结论。
+也不能未经验证就把 N 低分归因于关闭 memories：这是潜在配置差异，尚无因果证据。
+
+### 当前工作与边界
+
+1. 先更新文档，再核查 CLI → pipeline → HarnessMemoryAdapter → Codex 调用链及最终生效配置。
+2. 使用仓库真实 adapter/pipeline；保留原生 session/QA prompt、图片传递方式、ephemeral 和工作目录等配置。
+3. 仅配置运行所需的 GPT-6 模型/provider/认证；不新增禁用 memories、工具、skills/plugins 的实验开关，不主动开启仓库未要求的功能。
+4. 如必须使用已有 localhost 转发解决网络兼容，只改变传输，单独记录；不替换 Codex 的推理与工具循环。
+5. 先完成 excel_01，再扩展已有 file_mgmt_01、web_01；所有 checkpoint 保留。另建输出目录，不复用 N/B 答案。
+6. judge 是独立评分配置；核对论文 GPT-5.4-mini 与仓库默认值，记录实际使用值，不与被测 GPT-6 混淆。
+7. 记录命令、源码版本、有效配置、输入和运行日志；检查工具是否读取 gold/未来数据。发现问题先报告事实，不暗改协议。
+
+当前源码事实：Codex 分支逐次调用独立 `codex exec --ephemeral`，没有 resume；adapter 不主动附加图片。
+普通工作目录文件可以保留。这些实现现状照实运行，不按直觉改成持续 transcript 或强制 memory MCP。
+论文没有提供足以确认作者完整 Codex runtime 的细节；“遵循当前仓库”与“作者环境完全一致”必须分开表述。
+
+### 原生运行进展
+
+- 已核对真实调用链：`eval_framework.cli.main` → `run_eval_sample` → `HarnessMemoryAdapter` → `_call_codex_exec_prompt`。
+- 启动器 `scripts/run_native_codex_gpt6.py` 只覆盖进程内模型/连接/runner 配置并调用真实 CLI；没有自定义 session 循环或 adapter。原始 harness YAML 不改。
+- 保留 `/root/.codex`、`/tmp`、workspace-write、approval never、ephemeral true、1M context/900k compact 配置；继承 home 中 medium reasoning 和现有 MCP/skills 等设置，不额外开关 memories。
+- `scripts/codex_native_logged.py` 仅加 JSON 事件日志与 localhost 传输覆盖，禁用请求压缩用于兼容。真实 Codex 仍是 `/usr/local/bin/codex`。原生不主动附图的行为保留。
+- GPT-6 Responses 探测返回 `gpt-6-astra`。请求 judge `gpt-5.4-mini`，接口探测返回 `gpt-5.6-terra`；**judge 与论文一致性未成立**。保留请求名称并逐次记录 response_model，不能把该服务的返回标签当成已验证的模型身份。
+- `eval_framework/openai_compat.py` 仅新增 response_model 日志字段，不改请求或评分逻辑。
+- `excel_01` 原生评测已启动；输出 `exp_log/native_codex_gpt6/excel_01/`，控制台日志为相邻 `excel_01.log`。首次连接调试运行已排除；run2 也因传输覆盖未生效而排除；当前有效重跑目录为 `excel_01_run3/`，对应日志 `excel_01_run3.log`。最终结果见下节。
+- Codex 调用顺序为 excel → file_mgmt → web；前一样本结束 Codex 阶段后，可与其 judge 阶段并行启动下一样本。不会同时在 `/tmp` 运行两个评测 Codex。跨样本残留仍需审计。
+- 三个样本均已完成；分别有 30 次有效 Codex 调用且无工具事件，judge 全部结束。
+
+```bash
+conda run --no-capture-output -n worldmemarena python -u scripts/run_native_codex_gpt6.py \
+  --sample-index 1 --output exp_log/native_codex_gpt6/excel_01_run3
+```
+
+连接调试补充：provider 的 base_url 与继承的 OPENAI_BASE_URL 同时指向 localhost；认证从 home 的 OpenAI auth 模式改为使用既有 OPENAI_API_KEY 环境变量，仅影响连接。初次调试发现 Codex 被中止时可能 exit 0 而无 turn.completed，原生函数会回退使用 stdout；整个首次运行已排除，包装器增加非零 tokens 的完成事件检查，失败不冒充答案。未新增 memory、prompt 或工具限制。进一步发现 `exec` 前后同时含 `--config` 时，前置传输覆盖未按预期生效；run3 将连接参数与仓库参数放在同一 exec 层，transport.jsonl 已记录有效 HTTP 200。
+
+用户已确认 judge 差异不阻碍推进。继续使用所请求的 judge，保存实际 response_model；不能据“更强”直接推断分数更高。
+
+### 原生故障诊断分数（本地三个 GUI 样本，非有效记忆性能结果）
+
+完整报告：[原生结果](../exp_log/native_codex_gpt6/report/report.md)；结构化结果及审计：[results.json](../exp_log/native_codex_gpt6/report/results.json)。
+
+| 样本 | QA | QA-C | QA-H | QA-O | F1 | BLEU-1 |
+|---|---:|---:|---:|---:|---:|---:|
+| excel_01 | 54 | 9.26 | 0.00 | 90.74 | 5.94 | 2.40 |
+| file_mgmt_01 | 54 | 9.26 | 0.00 | 90.74 | 5.19 | 2.24 |
+| web_01 | 53 | 9.43 | 0.00 | 90.57 | 6.22 | 2.63 |
+| 样本宏平均 | 161 合计 | 9.32 | 0.00 | 90.68 | 5.79 | 2.42 |
+
+全部 161 个回答都是 `Not mentioned in memory.`。其中 15 道 Correct（各样本 5 道）的 gold 表明该信息未被轨迹记录。这些正确拒答不证明历史记忆保留。
+90 次调用有效、thread 独立，实际 prompt 与仓库模板逐条一致；没有工具事件。每样本 25 sessions / 5 checkpoints 全部完成，评分无缺漏。
+保留原生 home 后仍未观察到持久化行为；先前“额外关闭 memories 导致 N 低分”的解释没有得到支持，不能作为已证实原因。
+这是当前仓库原生 Codex 分支、现有 CLI/provider 下的实测结果；论文作者 runtime 尚不能确认完全一致。不能将其解释成 GPT-6 能力低于论文模型。
+judge 请求 `gpt-5.4-mini`，161 次评分返回标识均为 `gpt-5.6-terra`；用户已接受该差异不阻碍本轮实验。无论 judge 如何，全部拒答是评分前已生成的事实。
+
+运行产物：`exp_log/native_codex_gpt6/{excel_01_run3,file_mgmt_01,web_01}/`。
+排除调试目录：`excel_01/`、`excel_01_run2/`，均保留原因和日志，不计分。
+只调整模型/连接/认证、日志及有效完成检查；未改原生 prompt、adapter、session/checkpoint 调度。源码/配置 hashes 保存在各 manifest。
+
+### 已执行步骤（不等于原生记忆验收通过）
+
+- [x] 明确固定被测系统为 Codex + GPT-6，标记 N/B 为历史探索。
+- [x] 核对真实评测入口、默认配置、judge 选择和最终生效设置。
+- [x] 配置 GPT-6/provider，保存允许的运行差异；不改变 harness 状态管理协议。
+- [x] 原生路径完成 excel_01 的 25 sessions / 5 checkpoints / 54 QA。
+- [x] 原生路径扩展 file_mgmt_01 与 web_01。
+- [x] 核对 prompt/QA/线程记录，保存故障诊断分数。
+- [ ] 完整工具链、状态交接及输入边界验收；通过后重新评测。
+
+用户已授权自主推进；只有真实阻碍或必要协议决策才询问。
+
+后续 TODO：核查论文使用的具体 Codex CLI/runtime 配置为何能持久化。当前不擅自添加 resume、memory prompt 或新工具来提高分数；那会形成新的协议。
+
+## 历史探索实验范围
+
+探索 N/B 已完成三个样本共 322 QA，保存了 180 次调用的记录一致性检查。
+后续发现 CLI 工具事件存在盲区，旧审计不能单独证明完整工具访问边界，**更不证明它们与论文/仓库原生配置等价**。
+下面的协议、分数和命令均属于这批历史探索，当前主任务结果将单独记录。
+
+## 论文与仓库方法
+
+论文：[arXiv 2605.29341](https://arxiv.org/abs/2605.29341)，本地文件 `WorldMemArena_paper.pdf`。
+两个 regime 是 Lifelong Evolution 和 Agentic Execution，后者含 GUI / Embodied。
+三类方法范式为 long-context、manually-designed memory systems、harness-based memory agents。
+
+仓库统一流程为 reset → 顺序 ingest session → 在 checkpoint retrieve / answer → QA 评分。
+
+| 范式 | 仓库做法 | 本次关系 |
+|---|---|---|
+| Long-context | QA 时输入长历史；MMFU_Single 虽位于 memory adapters 中，也属于此类 | 未运行 |
+| Engineered memory | A-Mem、SimpleMem 等用指定写入/检索模块维护记忆 | 未运行 |
+| Harness-based | session 交给 harness，由其自行维护状态，checkpoint 批量答题 | 本次运行 Codex |
+
+论文只明确顺序 session 和阶段性 QA，未规定 Codex CLI 必须 resume，亦未规定必须 fresh context。
+因此 B 是研究外部记忆的一种控制协议，不能声称比作者做法更忠实。
+本次消费已有 GUI 轨迹并回答 checkpoint 问题，不是启动桌面环境重新执行 GUI 操作。
+
+## 数据与 gold 边界
+
+目录 `.cache/worldmemarena_gui`，固定数据 revision `e2148757921fc7e2d66d8ed899823b763227c341`。
+下载清单及校验信息在 `download_manifest.json` 和 `expansion_manifest.json`。
+
+| 样本 | sessions | checkpoints | QA |
+|---|---:|---:|---:|
+| excel_01 | 25 | 5 | 54 |
+| file_mgmt_01 | 25 | 5 | 54 |
+| web_01 | 25 | 5 | 53 |
+| 每协议合计 | 75 | 15 | 161 |
+
+共 78 张截图，已解码验证。每个 session 有 gold memory points；每道 QA 有 gold answer 和 evidence IDs。
+Gold 用于离线 judge，不放入 Codex 的 session / QA prompt。模型自行生成的 memory 与 gold memory 是不同对象。
+
+## 固定协议
+
+| 项目 | 探索 N：原生 prompt | B：fresh + memory |
+|---|---|---|
+| 每次调用 | 新的 ephemeral codex exec | 新的 ephemeral codex exec |
+| transcript resume | 无 | 无 |
+| session prompt | 原生 prompt | 明确要求读、更新、保留 memory |
+| QA prompt | 原生 `_BATCH_QA_PROMPT` | 只替换信息来源为 read_memory，保留批量格式和 under 15 words 要求 |
+| 工具 | shell / 文件 / view_image | 仅 read_memory / write_memory；QA 只读 |
+| 跨轮状态 | 同样本专用 workspace，可自主写文件 | 单一 JSON，最大 256 KiB，结构由模型决定 |
+| 截图 | 不主动附加，session 文本保留路径 | ingest 附加当前 session 截图，路径替换为 image ID |
+| 旧原始轨迹和截图 | 原生工具有潜在读取能力，需审计 | 后续调用不提供；只保留模型写入的结构化/文字记忆 |
+
+**ephemeral 不会删除 workspace 文件。** 原生 adapter 未显式传递 memory，不代表 Codex 不能自主持久化。
+N 使用隔离的每样本工作目录，禁用 web、host skills/plugins，并固定 medium reasoning；所以是原生流程的受控运行，而非作者完整环境的逐字复刻。
+N 的工具限制不等于 B 的 memory-only 边界；若工具访问 gold 或未来数据，须排除污染结果。
+B 的 shell/view_image/web/plugins 等均关闭；审计工具事件，不把这一边界宣称为对抗性操作系统沙箱证明。
+
+N/B 同时改变记忆机制、prompt 和显式视觉输入，**分数差不能单独归因于 memory**。
+两者都不 resume；本实验不是 resume 与 fresh 的单变量比较。
+两组均收到数据自带的 image caption；N 未主动附加原始截图不等于完全没有视觉描述。
+运行器关闭 Codex 内置 memories feature，隔离 host 状态；N 保留自主文件读写，B 只开放指定 memory 工具。
+
+A 是早期关闭文件工具、无显式历史传递的诊断组，不是原生主对照。已停止，保留 partial 记录：excel 33 QA，其余各 11 QA，不纳入 N/B 汇总。
+
+## 实现与环境
+
+- Conda：`worldmemarena`；Codex CLI：`0.158.0`。
+- Provider：icodeeasy，`https://api.icodeeasy.cc`，Responses API。
+- Backbone 和本地 judge：`gpt-6-astra`；Codex reasoning effort：medium。
+- 独立运行器：`scripts/run_codex_protocols.py`；原生 `harness_native.py` 和 `harness_config.yaml` 未修改。
+- 已有配置改动：`base_model_config.yaml` 增加 provider/model；`harness_api.py` 将 prompt 放在 greedy `--image` 参数前，修复 CLI 解析，不改变 prompt 内容。本次 N/B 使用独立运行器。
+- MCP：`scripts/wma_memory_server.py`；只操作固定 memory 文件，原子写入；QA 暴露只读工具。
+- 传输：`scripts/wma_transport.py`，本机随机 localhost 端口转发相同 Responses JSON / SSE 到上述 provider，不换模型或工具循环。日志不记录认证头。
+- 汇总：`scripts/summarize_codex_protocols.py`。
+- 审计：`scripts/audit_codex_protocols.py`。六组共 180 次调用、322 QA 已通过核验：180 个独立 thread；N 没有工具调用，B 仅使用记忆工具；题目、gold 和答案与对应数据及调用记录一致。
+
+CLI 直连曾反复 Connection failed，而 Python HTTPS 请求正常；本地转发解决该兼容问题。
+MCP 必须配置 server-scoped `default_tools_approval_mode = "approve"`；早期 auto 导致写入被阻止，相应失败实验排除。
+单调用超时 900 秒，每次运行至多重试 3 次；失败记录保留，B 重试前恢复上轮 memory。
+空响应、零 input tokens、无 memory 写入、非法工具或无效 judge 不接受为成功。
+续跑按 prompt/图片/protocol/model hash 复用完成调用，并恢复 memory 快照。
+
+## 评分与论文对照
+
+沿用仓库 answer-only judge、F1、BLEU-1；报告 QA Correct / Hallucination / Omission，逐样本、checkpoint、题型及样本宏平均。
+不修改原生简短回答要求，不因看到错误题而改 prompt 或重判。
+
+| 论文参考 | QA-C | QA-H | QA-O | F1 | BLEU-1 |
+|---|---:|---:|---:|---:|---:|
+| Table 3 Codex–GPT-5.4-nano | 53.62 | 20.76 | 25.62 | 32.56 | 10.12 |
+
+上表为百分数、跨任务汇总；论文使用 GPT-5.4-mini 作为 evaluator。论文 benchmark 共 461 样本，此处未核验该 baseline 实际完成数；正文与表格模型命名有出入，引用以表格标签为准。
+目前没有三个样本对应的官方单样本分数。本地模型、judge、CLI、reasoning、数据范围和输入边界均有差异；不能据此声称超过论文或复现整个 benchmark。
+每个样本/协议只运行一条有效轨迹，没有多 seed 方差估计。
+成功调用 token 统计不包含失败尝试，不能直接当完整账单；失败日志单独保留。
+
+## 历史探索结果（2026-09-29）
+
+五项论文指标与百分点差值见 [论文指标对照](codex_gpt6_paper_comparison.md)。
+
+完整报告：[report.md](../exp_log/codex_gui_report/report.md)；机器可读结果：[results.json](../exp_log/codex_gui_report/results.json)；审计及源码/数据 hashes：[audit.json](../exp_log/codex_gui_report/audit.json)。
+
+| 样本 | 每协议 QA | N QA-C | B QA-C |
+|---|---:|---:|---:|
+| excel_01 | 54 | 29.63% | 53.70% |
+| file_mgmt_01 | 54 | 9.26% | 50.00% |
+| web_01 | 53 | 16.98% | 49.06% |
+| 样本宏平均 | 161 合计 | 18.62% | 50.92% |
+
+| 协议 | QA-C | QA-H | QA-O | F1 | BLEU-1 |
+|---|---:|---:|---:|---:|---:|
+| N 宏平均 | 18.62 | 2.48 | 78.90 | 9.57 | 3.53 |
+| B 宏平均 | 50.92 | 28.62 | 20.46 | 25.51 | 10.76 |
+
+B 的正确率更高、遗漏更少，但 hallucination 也更多。N 共 30/161 Correct，B 共 82/161 Correct；上表使用样本宏平均，因此与按题目汇总的 micro 百分比略有差别。
+N 全部 90 次调用没有任何工具事件，未观察到自主文件记忆行为。B 的 75 个 session 均有成功写入；15 个 checkpoint 的 memory bytes 前后相同。
+B 成功调用合计 140 次 read_memory、78 次 write_memory，有些 session 多次写入；N/B 均未复用 thread。
+主运行保留 4 个失败尝试，已自动恢复/重试；更早的排除实验另存，不计入这些失败数量。
+
+论文 Codex 行 QA-C 53.62% 与 B 的 50.92% 只能并列参考，不能视作同样本比较，更不能据此判断模型优劣。
+
+## 观察记录（不用于修改协议）
+
+1. B/excel 第一个 checkpoint 为 9 Correct / 1 Hallucination / 1 Omission（81.82%）。VU 因遗漏视觉细节判 Omission，CMR 因因果断言证据不足判 Hallucination，保留原始 judge 结果。
+2. N/excel 第一个 checkpoint 为 6/11 Correct，但没有调用文件或图片工具。独立上下文仍可从问题及同批其他问题的线索回答部分题；QA Correct 不能单独证明记忆保留。
+3. B/excel 的 S18 memory 约 17 KB，保留旧 image IDs；S20 读取旧 memory 后写成约 3.3 KB，只保留 S20，canonical image IDs 消失。checkpoint 2 随后仅 3/11 Correct，多题回答 memory 未提及。属于可追踪的模型记忆维护失败，未人为修补。
+   证据：`exp_log/codex_protocols_v4/B/excel_01/calls/{S18,S20}/memory.after.json` 与 `calls/S20/result.json`、`qa/2_*.json`。
+
+4. B/file_mgmt 在 S46 有 99,252 bytes、23 个历史 session 明细；S48 两次读取旧 memory 后写成 5,130 bytes，sessions 仅剩 S48，另有少量 historical_facts 摘要。S50 仅保留 S48/S50 明细。不能将体积降低本身等同错误，但大量历史细节被压缩是可观察事实；本轮未干预。证据：`exp_log/codex_protocols_v4/B/file_mgmt_01/calls/{S46,S48,S50}/memory.after.json` 和 `calls/S48/result.json`。
+
+## 运行、续跑和输出
+
+主输出目录：`exp_log/codex_protocols_v4/{N,B}/{excel_01,file_mgmt_01,web_01}`。
+日志：`exp_log/codex_protocols_v4_{N,B}_{sample}_resume.log`。
+各样本内部串行推进；样本之间独立运行，不共享 memory / CODEX_HOME。
+
+```bash
+# 将 protocol 和 sample 换成需要续跑的组；正在运行时不要重复启动。
+conda run --no-capture-output -n worldmemarena python -u scripts/run_codex_protocols.py \
+  --protocol N --sample excel_01 --output exp_log/codex_protocols_v4/N/excel_01
+
+conda run --no-capture-output -n worldmemarena python scripts/summarize_codex_protocols.py \
+  exp_log/codex_protocols_v4/N/excel_01 \
+  exp_log/codex_protocols_v4/N/file_mgmt_01 \
+  exp_log/codex_protocols_v4/N/web_01 \
+  exp_log/codex_protocols_v4/B/excel_01 \
+  exp_log/codex_protocols_v4/B/file_mgmt_01 \
+  exp_log/codex_protocols_v4/B/web_01 --output exp_log/codex_gui_report
+```
+
+每个运行保存 manifest、prompt、JSONL events、answer、memory/workspace 快照、逐题 judge、qa_records 和 aggregate_metrics。
+最终报告：`exp_log/codex_gui_report/report.md` 和 `results.json`。
+调试目录 `codex_protocols/`、B v2/v3、`codex_gui_fresh_cp1` 均排除；A partial 仅诊断。
+
+## 历史探索 TODO
+
+- [x] 论文、数据、78 张图片准备和校验。
+- [x] 核查三种方法范式及仓库原生调用路径。
+- [x] 恢复原生 adapter/prompt，独立实现 N/B 运行器。
+- [x] 验证真实 Codex 工具循环、MCP 读写和 QA 只读。
+- [x] 跑通首个 checkpoint 后扩展三个 GUI 类别。
+- [x] 解决传输和 MCP 配置兼容问题，保留失败记录。
+- [x] N/B 三样本全部 25 sessions / 5 checkpoints 完成。
+- [x] 审计 180 次有效调用：fresh thread、非零 usage、合法工具、QA memory 不变。
+- [x] 核验 322 道有效 QA 无缺漏/重复，核对 gold 和回答与数据集一致。
+- [x] 生成完整逐样本/checkpoint/题型与论文参考报告。
+- [x] 保存源码 hashes、审计结果和最终状态，更新此文档。
+
+后续研究候选（不属于本轮已经完成的范围，先记录，避免遗忘）：
+
+- [ ] 固定图片输入与工具权限，做只改变记忆交接方式的单变量对照。
+- [ ] 在看不到测试答案的前提下预注册新 memory 更新协议，研究覆写/压缩失败。
+- [ ] 扩大样本与重复种子，估计方差；扩大评测范围；被测系统继续固定 Codex + GPT-6，judge 和其他配置单独对齐。

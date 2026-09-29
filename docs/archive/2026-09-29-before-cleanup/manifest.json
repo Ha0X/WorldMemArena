@@ -1,0 +1,22 @@
+{
+  "codex_gpt6_gui_experiment.md": {
+    "snapshot": "codex_gpt6_gui_experiment.md.txt",
+    "sha256": "93381fe93b86576b9c270a90033da4bd2131d5fe36cc35dfc6c0c6a187b65a7d"
+  },
+  "codex_gpt6_isolated_protocol.md": {
+    "snapshot": "codex_gpt6_isolated_protocol.md.txt",
+    "sha256": "5c872320219b9ed10efd48c5e157e1f36b102451aee698a291b320cf56cd608a"
+  },
+  "codex_gpt6_paper_comparison.md": {
+    "snapshot": "codex_gpt6_paper_comparison.md.txt",
+    "sha256": "b3e37819cce49ac885a6cdccd25a6ce12e18b546c3295a1a41067936e99846ea"
+  },
+  "codex_gpt6_status_and_todo.md": {
+    "snapshot": "codex_gpt6_status_and_todo.md.txt",
+    "sha256": "f80aa5d04e6c877d7ee39c6f7f3965e7baabc0a8fb1e78603970138369ac24cf"
+  },
+  "codex_native_failure_diagnosis.md": {
+    "snapshot": "codex_native_failure_diagnosis.md.txt",
+    "sha256": "56f47ca2773339a723dcca312ba3dda39a705a872adaf6159a50dde190038db7"
+  }
+}
